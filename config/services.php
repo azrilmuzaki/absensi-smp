@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'vercel' => [
+        'cron_secret' => env('CRON_SECRET'),
+    ],
+
 ];

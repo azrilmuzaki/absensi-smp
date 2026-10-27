@@ -1,7 +1,11 @@
 <?php
 
 use App\Http\Controllers\Api\DeviceApiController;
+use App\Http\Controllers\Api\VercelCronController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/cron/mark-alpha', [VercelCronController::class, 'markAlpha'])
+    ->name('api.cron.mark-alpha');
 
 // ── ESP32 Device API ───────────────────────────────────────────────────────
 // Semua endpoint dilindungi middleware 'device' (API Key autentikasi).
