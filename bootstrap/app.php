@@ -23,10 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->validateCsrfTokens(except: ['api/*']);
-
-        $middleware->web(append: [
-            EnsureUserIsActive::class,
-        ]);
+        // EnsureUserIsActive TIDAK diappend ke global web stack karena sudah
+        // dipakai sebagai alias 'active.user' di route group authenticated.
+        // Menambahkannya di sini juga akan membuatnya berjalan dua kali.
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

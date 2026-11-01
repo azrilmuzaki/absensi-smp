@@ -2,30 +2,31 @@
 @section('page-title', 'Dashboard — ' . ($myClass?->name ?? 'Wali Kelas'))
 @section('content')
 
+    <div data-live-dashboard data-live-url="{{ route('dashboard.live') }}" data-live-role="wali">
     <div class="stats-grid">
         <div class="stat-card color-blue">
             <div class="stat-label">Total Siswa Kelas</div>
-            <div class="stat-value">{{ $stats['total_students'] }}</div>
+            <div class="stat-value" data-live-stat="total_students">{{ $stats['total_students'] }}</div>
         </div>
         <div class="stat-card color-green">
             <div class="stat-label">Hadir</div>
-            <div class="stat-value">{{ $stats['hadir'] }}</div>
+            <div class="stat-value" data-live-stat="hadir">{{ $stats['hadir'] }}</div>
         </div>
         <div class="stat-card color-yellow">
             <div class="stat-label">Terlambat</div>
-            <div class="stat-value">{{ $stats['terlambat'] }}</div>
+            <div class="stat-value" data-live-stat="terlambat">{{ $stats['terlambat'] }}</div>
         </div>
         <div class="stat-card" style="border-left:3px solid #0891b2">
             <div class="stat-label">Izin</div>
-            <div class="stat-value">{{ $stats['izin'] }}</div>
+            <div class="stat-value" data-live-stat="izin">{{ $stats['izin'] }}</div>
         </div>
         <div class="stat-card color-yellow">
             <div class="stat-label">Sakit</div>
-            <div class="stat-value">{{ $stats['sakit'] }}</div>
+            <div class="stat-value" data-live-stat="sakit">{{ $stats['sakit'] }}</div>
         </div>
         <div class="stat-card color-red">
             <div class="stat-label">Alpha</div>
-            <div class="stat-value">{{ $stats['alpha'] }}</div>
+            <div class="stat-value" data-live-stat="alpha">{{ $stats['alpha'] }}</div>
         </div>
     </div>
 
@@ -34,8 +35,11 @@
         {{-- Absensi Terbaru --}}
         <div class="card">
             <div class="card-header">
-                <div class="card-title">Absensi Terbaru</div>
+            <div class="card-title">Absensi Terbaru</div>
+            <div class="table-actions">
+                <span class="badge badge-gray" data-live-status aria-live="polite">Menghubungkan…</span>
                 <a href="{{ route('attendances.index') }}" class="btn btn-outline btn-sm">Buka Presensi</a>
+            </div>
             </div>
             <div class="table-wrap">
                 <table>
@@ -46,7 +50,7 @@
                             <th>Status</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-live-recent-attendance>
                         @forelse($recentAttendance as $a)
                             <tr>
                                 <td>{{ $a->student->name ?? '-' }}</td>
@@ -70,9 +74,9 @@
         {{-- Belum Hadir --}}
         <div class="card">
             <div class="card-header">
-                <div class="card-title" style="color:#dc2626">Belum Hadir ({{ $absentStudents->count() }})</div>
+            <div class="card-title" style="color:#dc2626">Belum Hadir (<span data-live-absent-count>{{ $absentStudents->count() }}</span>)</div>
             </div>
-            <div style="padding:12px;max-height:400px;overflow-y:auto">
+            <div data-live-absent-list style="padding:12px;max-height:400px;overflow-y:auto">
                 @forelse($absentStudents as $s)
                     <div style="padding:8px 4px;border-bottom:1px solid #f3f4f6;font-size:13px">{{ $s->name }}</div>
                 @empty
@@ -80,6 +84,7 @@
                 @endforelse
             </div>
         </div>
+    </div>
     </div>
 
 @endsection

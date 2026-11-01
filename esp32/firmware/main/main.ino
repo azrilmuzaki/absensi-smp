@@ -24,14 +24,7 @@
 #include <time.h>
 
 // ── Konfigurasi WiFi & Server ─────────────────────────────
-#if __has_include("secrets.h")
 #include "secrets.h"
-#else
-#define WIFI_SSID ""
-#define WIFI_PASSWORD ""
-#define SERVER_URL "http://127.0.0.1:8000"
-#define DEVICE_API_KEY "secret-api-key-123"
-#endif
 
 // ── File Path LittleFS ────────────────────────────────────
 #define CACHE_FILE    "/students.json"

@@ -1,18 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "app": {
-      "root": ".",
-      "entrypoint": "Dockerfile.vercel",
-      "runtime": "container"
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": { "service": "app" }
-    }
-  ],
+  "framework": "container",
+  "regions": ["sin1"],
   "crons": [
     {
       "path": "/api/cron/mark-alpha",

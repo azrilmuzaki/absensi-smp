@@ -364,6 +364,136 @@
         })();
     </script>
     @stack('scripts')
+    <script>
+        (() => {
+            const dashboard = document.querySelector('[data-live-dashboard]');
+            if (!dashboard) return;
+
+            const statusElements = dashboard.querySelectorAll('[data-live-status]');
+            const attendanceBody = dashboard.querySelector('[data-live-recent-attendance]');
+            const isAdmin = dashboard.dataset.liveRole === 'admin';
+            let requestInProgress = false;
+
+            const statusColors = {
+                HADIR: 'green',
+                TERLAMBAT: 'yellow',
+                IZIN: 'blue',
+                SAKIT: 'yellow',
+                ALPHA: 'red',
+            };
+
+            const setStatus = (message, connected) => {
+                statusElements.forEach(element => {
+                    element.className = `badge ${connected ? 'badge-green' : 'badge-yellow'}`;
+                    element.textContent = message;
+                });
+            };
+
+            const createCell = (value) => {
+                const cell = document.createElement('td');
+                cell.textContent = value ?? '-';
+                return cell;
+            };
+
+            const createBadgeCell = (value, color) => {
+                const cell = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = `badge badge-${color}`;
+                badge.textContent = value ?? '-';
+                cell.appendChild(badge);
+                return cell;
+            };
+
+            const renderAttendance = (rows) => {
+                if (!attendanceBody) return;
+
+                if (!rows.length) {
+                    const row = document.createElement('tr');
+                    const cell = document.createElement('td');
+                    cell.colSpan = isAdmin ? 4 : 3;
+                    cell.style.cssText = 'text-align:center;color:#9ca3af;padding:24px';
+                    cell.textContent = 'Belum ada absensi hari ini.';
+                    row.appendChild(cell);
+                    attendanceBody.replaceChildren(row);
+                    return;
+                }
+
+                const elements = rows.map(item => {
+                    const row = document.createElement('tr');
+                    const nameCell = createCell(item.student_name);
+                    if (isAdmin) {
+                        const name = document.createElement('strong');
+                        name.textContent = item.student_name ?? '-';
+                        nameCell.replaceChildren(name);
+                    }
+
+                    row.append(nameCell, createCell(item.time), createBadgeCell(item.status, statusColors[item.status] ?? 'gray'));
+                    if (isAdmin) row.appendChild(createBadgeCell(item.source, 'gray'));
+                    return row;
+                });
+
+                attendanceBody.replaceChildren(...elements);
+            };
+
+            const renderAbsentStudents = (names) => {
+                const count = dashboard.querySelector('[data-live-absent-count]');
+                const list = dashboard.querySelector('[data-live-absent-list]');
+                if (!count || !list) return;
+
+                count.textContent = String(names.length);
+                if (!names.length) {
+                    const message = document.createElement('div');
+                    message.style.cssText = 'text-align:center;color:#16a34a;padding:20px;font-size:13px';
+                    message.textContent = 'Semua siswa sudah hadir!';
+                    list.replaceChildren(message);
+                    return;
+                }
+
+                list.replaceChildren(...names.map(name => {
+                    const item = document.createElement('div');
+                    item.style.cssText = 'padding:8px 4px;border-bottom:1px solid #f3f4f6;font-size:13px';
+                    item.textContent = name;
+                    return item;
+                }));
+            };
+
+            const refreshDashboard = async () => {
+                if (document.hidden || requestInProgress) return;
+                requestInProgress = true;
+
+                try {
+                    const response = await fetch(dashboard.dataset.liveUrl, {
+                        headers: { Accept: 'application/json' },
+                        cache: 'no-store',
+                        credentials: 'same-origin',
+                    });
+                    if (!response.ok) throw new Error('Dashboard live request failed');
+
+                    const data = await response.json();
+                    dashboard.querySelectorAll('[data-live-stat]').forEach(element => {
+                        const value = data.stats[element.dataset.liveStat];
+                        if (value !== undefined) element.textContent = String(value);
+                    });
+
+                    const date = dashboard.querySelector('[data-live-today]');
+                    if (date) date.textContent = data.today_label;
+                    renderAttendance(data.recent_attendance ?? []);
+                    renderAbsentStudents(data.absent_students ?? []);
+                    setStatus(`Live · diperbarui ${data.updated_at_label}`, true);
+                } catch {
+                    setStatus('Koneksi realtime terputus', false);
+                } finally {
+                    requestInProgress = false;
+                }
+            };
+
+            refreshDashboard();
+            window.setInterval(refreshDashboard, 5000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) refreshDashboard();
+            });
+        })();
+    </script>
 </body>
 
 </html>

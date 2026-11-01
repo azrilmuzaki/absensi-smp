@@ -29,11 +29,8 @@ class DeviceApiController extends Controller
         ]);
 
         $device = $request->attributes->get('device');
-        $apiKey = $request->header('X-Device-Key') ?? $request->input('api_key');
 
-        $result = $this->attendanceService->processTap(array_merge($data, [
-            'api_key' => $apiKey,
-        ]));
+        $result = $this->attendanceService->processTap($data, $device);
 
         $httpCode = $result['success'] ? 200 : 422;
 
@@ -147,13 +144,20 @@ class DeviceApiController extends Controller
             'queue.*.idempotency_key' => 'required|string',
         ]);
 
-        $apiKey = $request->header('X-Device-Key') ?? $request->input('api_key');
+        $device = $request->attributes->get('device');
         $results = [];
 
         foreach ($data['queue'] as $item) {
-            $result = $this->attendanceService->processTap(array_merge($item, [
-                'api_key' => $apiKey,
-            ]));
+            try {
+                $result = $this->attendanceService->processTap($item, $device);
+            } catch (\Throwable $e) {
+                $result = [
+                    'success' => false,
+                    'code' => 'SERVER_ERROR',
+                    'message' => $e->getMessage(),
+                ];
+            }
+
             $results[] = [
                 'idempotency_key' => $item['idempotency_key'],
                 'uid' => $item['uid'],
@@ -165,7 +169,6 @@ class DeviceApiController extends Controller
         $successCount = collect($results)->where('success', true)->count();
 
         return response()->json([
-            // This indicates the batch was processed; each item has its own outcome.
             'success' => true,
             'processed' => count($results),
             'accepted' => $successCount,

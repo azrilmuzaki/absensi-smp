@@ -31,6 +31,7 @@ Route::middleware(['auth', 'active.user'])->group(function () {
 
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/live', [DashboardController::class, 'live'])->name('dashboard.live');
 
     // ── Absensi Harian & Laporan (Admin + Wali Kelas) ─────────────────────
     Route::middleware('role:ADMIN,WALI_KELAS')->group(function () {
@@ -76,6 +77,7 @@ Route::middleware(['auth', 'active.user'])->group(function () {
         Route::post('/students/{student}/rfid', [RfidCardController::class, 'assign'])->name('rfid.assign');
         Route::post('/rfid/{rfidCard}/revoke', [RfidCardController::class, 'revoke'])->name('rfid.revoke');
         Route::get('/unknown-rfids', [UnknownRfidController::class, 'index'])->name('unknown-rfids.index');
+        Route::get('/unknown-rfids/live', [UnknownRfidController::class, 'live'])->name('unknown-rfids.live');
         Route::delete('/unknown-rfids/{unknownRfid}', [UnknownRfidController::class, 'destroy'])->name('unknown-rfids.destroy');
         Route::post('/unknown-rfids/clear-all', [UnknownRfidController::class, 'clearAll'])->name('unknown-rfids.clear');
 

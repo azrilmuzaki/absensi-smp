@@ -26,8 +26,10 @@ class MarkAbsentStudents extends Command
 
         // Cek hari libur mingguan
         $settings = AttendanceSetting::pluck('value', 'key');
-        $holidayDays = explode(',', $settings['hari_libur'] ?? '0,6');
-        if (in_array($date->dayOfWeek, $holidayDays)) {
+        // explode() menghasilkan array of strings, dayOfWeek adalah integer.
+        // Cast ke int agar perbandingan tidak gagal karena type mismatch atau spasi.
+        $holidayDays = array_map('intval', explode(',', $settings['hari_libur'] ?? '0,6'));
+        if (in_array((int) $date->dayOfWeek, $holidayDays, true)) {
             $this->info("Hari libur mingguan ({$dateStr}). Tidak ada proses ALPHA.");
 
             return 0;

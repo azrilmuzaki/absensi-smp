@@ -6,24 +6,69 @@ use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\Student;
 use App\Models\StudentClassPlacement;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(): View
     {
         $user = Auth::user();
+        abort_unless($user instanceof User, 401);
+
         $activeYear = AcademicYear::where('is_active', true)->first();
         $today = now(config('app.school_timezone'))->toDateString();
 
         if ($user->role === 'ADMIN') {
-            return $this->adminDashboard($activeYear, $today);
+            return view('dashboard.admin', $this->adminData($activeYear, $today) + [
+                'year' => $activeYear,
+                'today' => $today,
+            ]);
         }
 
-        return $this->waliDashboard($user, $activeYear, $today);
+        return view('dashboard.wali', $this->waliData($user, $activeYear, $today) + [
+            'myClass' => $user->schoolClass,
+            'year' => $activeYear,
+            'today' => $today,
+        ]);
     }
 
-    private function adminDashboard(?AcademicYear $year, string $today)
+    public function live(): JsonResponse
+    {
+        $user = Auth::user();
+        abort_unless($user instanceof User, 401);
+
+        $activeYear = AcademicYear::where('is_active', true)->first();
+        $schoolTimezone = config('app.school_timezone');
+        $today = now($schoolTimezone)->toDateString();
+        $isAdmin = $user->role === 'ADMIN';
+        $data = $isAdmin
+            ? $this->adminData($activeYear, $today)
+            : $this->waliData($user, $activeYear, $today);
+
+        return response()->json([
+            'stats' => $data['stats'],
+            'recent_attendance' => $data['recentAttendance']->map(static function (Attendance $attendance): array {
+                return [
+                    'student_name' => $attendance->student?->name ?? '-',
+                    'time' => (string) $attendance->time,
+                    'status' => $attendance->status,
+                    'source' => $attendance->source,
+                ];
+            })->values(),
+            'absent_students' => $isAdmin ? [] : $data['absentStudents']->pluck('name')->values(),
+            'today_label' => now($schoolTimezone)->format('d/m/Y'),
+            'updated_at_label' => now($schoolTimezone)->format('H:i:s'),
+        ], 200, ['Cache-Control' => 'no-store, private']);
+    }
+
+    /**
+     * @return array{stats: array<string, int>, recentAttendance: EloquentCollection<int, Attendance>}
+     */
+    private function adminData(?AcademicYear $year, string $today): array
     {
         $totalStudents = Student::where('status', 'ACTIVE')->count();
 
@@ -46,14 +91,19 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        return view('dashboard.admin', compact('stats', 'recentAttendance', 'year', 'today'));
+        return compact('stats', 'recentAttendance');
     }
 
-    private function waliDashboard($user, ?AcademicYear $year, string $today)
+    /**
+     * @return array{
+     *     stats: array<string, int>,
+     *     absentStudents: EloquentCollection<int, Student>,
+     *     recentAttendance: EloquentCollection<int, Attendance>
+     * }
+     */
+    private function waliData(User $user, ?AcademicYear $year, string $today): array
     {
-        $classId = $user->class_id;
-
-        $studentIds = StudentClassPlacement::where('school_class_id', $classId)
+        $studentIds = StudentClassPlacement::where('school_class_id', $user->class_id)
             ->where('academic_year_id', $year?->id)
             ->pluck('student_id');
 
@@ -85,8 +135,6 @@ class DashboardController extends Controller
             ->limit(10)
             ->get();
 
-        $myClass = $user->schoolClass;
-
-        return view('dashboard.wali', compact('stats', 'absentStudents', 'recentAttendance', 'myClass', 'year', 'today'));
+        return compact('stats', 'absentStudents', 'recentAttendance');
     }
 }

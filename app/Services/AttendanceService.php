@@ -18,22 +18,12 @@ class AttendanceService
 {
     /**
      * Memproses absensi dari perangkat ESP32.
-     * Mengembalikan response array yang aman dikirim ke ESP32.
+     * Device sudah divalidasi & di-update oleh middleware AuthenticateDevice,
+     * sehingga tidak perlu query ulang di sini.
      */
-    public function processTap(array $data)
+    public function processTap(array $data, Device $device)
     {
-        return DB::transaction(function () use ($data) {
-            $device = Device::where('api_key', $data['api_key'])->first();
-            if (! $device) {
-                return ['success' => false, 'code' => 'INVALID_DEVICE', 'message' => 'Perangkat tidak terdaftar.'];
-            }
-
-            // Perbarui last seen & IP
-            $device->update([
-                'last_seen_at' => now(),
-                'status' => 'ONLINE',
-            ]);
-
+        return DB::transaction(function () use ($data, $device) {
             $uid = strtoupper(trim($data['uid']));
             $schoolTimezone = config('app.school_timezone');
             $timestamp = ! empty($data['timestamp'])

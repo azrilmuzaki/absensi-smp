@@ -14,14 +14,16 @@
 
     <div class="card">
         <div class="card-header">
-            <div class="card-title">Log Kartu Tidak Dikenal</div>
-            @if($logs->count() > 0)
+            <div class="card-title">Log Kartu Tidak Dikenal (<span data-live-unknown-count>{{ $logs->total() }}</span>)</div>
+            <div class="table-actions">
+                <span class="badge badge-gray" data-unknown-live-status aria-live="polite">Menghubungkan…</span>
                 <form method="POST" action="{{ route('unknown-rfids.clear') }}"
-                    onsubmit="return confirm('Hapus semua log secara permanen?')">
+                    onsubmit="return confirm('Hapus semua log secara permanen?')"
+                    data-clear-all-unknown @if($logs->total() === 0) style="display:none" @endif>
                     @csrf
                     <button class="btn btn-danger btn-sm">Bersihkan Semua</button>
                 </form>
-            @endif
+            </div>
         </div>
         <div class="table-wrap">
             <table>
@@ -33,7 +35,10 @@
                         <th>Aksi</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody data-live-unknown-logs
+                    data-live-url="{{ route('unknown-rfids.live') }}"
+                    data-delete-url-template="{{ route('unknown-rfids.destroy', ['unknownRfid' => '__LOG_ID__']) }}"
+                    data-live-page="{{ $logs->currentPage() }}">
                     @forelse($logs as $log)
                         <tr>
                             <td>{{ $log->created_at->format('d M Y H:i:s') }}</td>
@@ -115,6 +120,144 @@
                 const form = document.getElementById('form-assign');
                 form.action = form.dataset.actionTemplate.replace('__STUDENT_ID__', encodeURIComponent(studentId));
             }
+
+            (() => {
+                const tableBody = document.querySelector('[data-live-unknown-logs]');
+                if (!tableBody) return;
+
+                const liveStatus = document.querySelector('[data-unknown-live-status]');
+                let lastSnapshot = null;
+                if (tableBody.dataset.livePage !== '1') {
+                    liveStatus.textContent = 'Pembaruan langsung tersedia di halaman terbaru';
+                    return;
+                }
+
+                const setLiveStatus = (message, connected) => {
+                    liveStatus.className = `badge ${connected ? 'badge-green' : 'badge-yellow'}`;
+                    liveStatus.textContent = message;
+                };
+
+                const createCell = value => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value ?? '-';
+                    return cell;
+                };
+
+                const renderLogs = logs => {
+                    if (!logs.length) {
+                        const row = document.createElement('tr');
+                        const cell = document.createElement('td');
+                        cell.colSpan = 4;
+                        cell.style.cssText = 'text-align:center;color:#9ca3af;padding:24px';
+                        cell.textContent = 'Tidak ada log kartu asing. Bagus!';
+                        row.appendChild(cell);
+                        tableBody.replaceChildren(row);
+                        return;
+                    }
+
+                    const deleteUrlTemplate = tableBody.dataset.deleteUrlTemplate;
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+                    tableBody.replaceChildren(...logs.map(log => {
+                        const row = document.createElement('tr');
+                        row.appendChild(createCell(log.created_at));
+
+                        const uidCell = document.createElement('td');
+                        const uid = document.createElement('code');
+                        uid.style.cssText = 'font-size:14px;color:#0891b2;background:#cffafe;padding:2px 6px;border-radius:4px';
+                        uid.textContent = log.uid;
+                        uidCell.appendChild(uid);
+                        row.appendChild(uidCell);
+                        row.appendChild(createCell(log.device_name));
+
+                        const actionCell = document.createElement('td');
+                        const actions = document.createElement('div');
+                        actions.className = 'table-actions';
+
+                        const assignButton = document.createElement('button');
+                        assignButton.type = 'button';
+                        assignButton.className = 'btn btn-primary btn-sm';
+                        assignButton.dataset.uid = log.uid;
+                        assignButton.textContent = 'Daftarkan';
+                        assignButton.addEventListener('click', () => openAssignModal(assignButton));
+                        actions.appendChild(assignButton);
+
+                        const deleteForm = document.createElement('form');
+                        deleteForm.method = 'POST';
+                        deleteForm.action = deleteUrlTemplate.replace('__LOG_ID__', encodeURIComponent(log.id));
+                        const tokenInput = document.createElement('input');
+                        tokenInput.type = 'hidden';
+                        tokenInput.name = '_token';
+                        tokenInput.value = csrfToken;
+                        const methodInput = document.createElement('input');
+                        methodInput.type = 'hidden';
+                        methodInput.name = '_method';
+                        methodInput.value = 'DELETE';
+                        const deleteButton = document.createElement('button');
+                        deleteButton.type = 'submit';
+                        deleteButton.className = 'btn btn-outline btn-sm';
+                        deleteButton.textContent = 'Hapus';
+                        deleteForm.append(tokenInput, methodInput, deleteButton);
+                        actions.appendChild(deleteForm);
+
+                        actionCell.appendChild(actions);
+                        row.appendChild(actionCell);
+                        return row;
+                    }));
+                };
+
+                const refreshUnknownLogs = async () => {
+                    if (document.hidden || refreshUnknownLogs.inProgress) return;
+                    refreshUnknownLogs.inProgress = true;
+
+                    try {
+                        const response = await fetch(tableBody.dataset.liveUrl, {
+                            headers: { Accept: 'application/json' },
+                            cache: 'no-store',
+                            credentials: 'same-origin',
+                        });
+                        if (!response.ok) throw new Error('Unknown RFID live request failed');
+
+                        const data = await response.json();
+                        const snapshot = JSON.stringify({
+                            total: data.total ?? 0,
+                            logs: data.logs ?? [],
+                            students: data.students ?? [],
+                        });
+
+                        if (snapshot !== lastSnapshot) {
+                            renderLogs(data.logs ?? []);
+                            document.querySelector('[data-live-unknown-count]').textContent = String(data.total ?? 0);
+                            document.querySelector('[data-clear-all-unknown]').style.display = data.total > 0 ? '' : 'none';
+
+                            const studentSelect = document.getElementById('student-select');
+                            const selectedStudentId = studentSelect.value;
+                            studentSelect.replaceChildren(new Option('Pilih Siswa...', ''));
+                            (data.students ?? []).forEach(student => {
+                                studentSelect.add(new Option(student.label, String(student.id)));
+                            });
+                            if ([...studentSelect.options].some(option => option.value === selectedStudentId)) {
+                                studentSelect.value = selectedStudentId;
+                                updateFormAction(selectedStudentId);
+                            }
+
+                            lastSnapshot = snapshot;
+                        }
+
+                        setLiveStatus(`Live · diperbarui ${data.updated_at_label}`, true);
+                    } catch {
+                        setLiveStatus('Koneksi realtime terputus', false);
+                    } finally {
+                        refreshUnknownLogs.inProgress = false;
+                    }
+                };
+
+                refreshUnknownLogs();
+                window.setInterval(refreshUnknownLogs, 5000);
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) refreshUnknownLogs();
+                });
+            })();
 
             @if(old('uid'))
                 const select = document.getElementById('student-select');

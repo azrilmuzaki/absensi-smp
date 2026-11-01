@@ -29,7 +29,8 @@ composer_output*.txt
 *.dump
 *.backup
 database/*.sqlite
-esp32/firmware/secrets.h
+esp32/firmware/.pio/
+esp32/firmware/**/secrets.h
 _ide_helper.php
 Homestead.json
 Homestead.yaml
