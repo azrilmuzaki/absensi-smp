@@ -73,7 +73,9 @@ class AttendanceService
 
             // 5. Cek Idempotency / Duplikasi (mencegah double tap pada tanggal yang sama)
             // Khusus ESP32 idempotency key akan kita gunakan untuk resend offline logic
-            $idempotencyKey = $data['idempotency_key'] ?? $student->id.'-'.$dateOnly;
+            // Scope device keys to the current student so reassigning one card
+            // to another student does not collide with the previous student's tap.
+            $idempotencyKey = $student->id.'-'.($data['idempotency_key'] ?? $dateOnly);
 
             $existing = Attendance::where('student_id', $student->id)
                 ->where('attendance_date', $dateOnly)
