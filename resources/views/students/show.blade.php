@@ -73,10 +73,13 @@
             </div>
 
             {{-- RFID --}}
+            @php
+                $activeRfidCards = $student->rfidCards->where('status', 'ACTIVE')->sortByDesc('created_at');
+            @endphp
             <div class="card">
                 <div class="card-header">
                     <div class="card-title">Kartu RFID</div>
-                    @if(auth()->user()->role === 'ADMIN' && !$student->rfidCards->where('status', 'ACTIVE')->first())
+                    @if(auth()->user()->role === 'ADMIN' && $activeRfidCards->isEmpty())
                         <button type="button" class="btn btn-primary btn-sm" data-modal-open="modal-rfid-assign">+ Daftarkan
                             Kartu</button>
                     @endif
@@ -92,12 +95,11 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($student->rfidCards->sortByDesc('created_at') as $card)
+                            @forelse($activeRfidCards as $card)
                                 <tr>
                                     <td><code style="font-size:13px">{{ $card->uid }}</code></td>
                                     <td>
-                                        <span
-                                            class="badge {{ $card->status === 'ACTIVE' ? 'badge-green' : 'badge-gray' }}">{{ $card->status }}</span>
+                                        <span class="badge badge-green">Aktif</span>
                                     </td>
                                     <td style="font-size:12px;color:#6b7280;min-width:110px">
                                         {{ $card->created_at->format('d M Y') }}</td>
@@ -114,8 +116,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="4" style="text-align:center;color:#9ca3af;padding:16px;font-size:13px">Belum
-                                        ada RFID terdaftar.</td>
+                                    <td colspan="4" style="text-align:center;color:#9ca3af;padding:16px;font-size:13px">Belum ada kartu RFID aktif.</td>
                                 </tr>
                             @endforelse
                         </tbody>

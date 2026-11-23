@@ -12,6 +12,7 @@ use App\Models\SchoolCalendar;
 use App\Models\Student;
 use App\Models\UnknownRfidLog;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class AttendanceService
@@ -141,46 +142,76 @@ class AttendanceService
         ?string $time,
         ?string $reason = null,
     ): Attendance {
-        return DB::transaction(function () use ($student, $year, $date, $newStatus, $time, $reason) {
-            $attendance = Attendance::where('student_id', $student->id)
-                ->where('attendance_date', $date)
-                ->first();
+        return DB::transaction(fn () => $this->recordManualInput($student, $year, $date, $newStatus, $time, $reason ?? 'Koreksi manual'));
+    }
 
-            $oldStatus = $attendance?->status;
-            $schoolTimezone = config('app.school_timezone');
-            $attendanceTime = in_array($newStatus, ['HADIR', 'TERLAMBAT'], true)
-                ? ($time ? $time.':00' : $attendance?->time)
-                : null;
-
-            if ($attendance) {
-                $attendance->update([
-                    'status' => $newStatus,
-                    'time' => $attendanceTime,
-                    'source' => 'MANUAL',
-                ]);
-            } else {
-                $attendance = Attendance::create([
-                    'student_id' => $student->id,
-                    'academic_year_id' => $year->id,
-                    'attendance_date' => $date,
-                    'status' => $newStatus,
-                    'time' => $attendanceTime,
-                    'device_id' => null,
-                    'source' => 'MANUAL',
-                    'idempotency_key' => $student->id.'-m-'.Carbon::parse($date, $schoolTimezone)->timestamp,
-                ]);
+    /**
+     * Perbarui status beberapa siswa secara atomik dan simpan audit untuk tiap siswa.
+     *
+     * @param  Collection<int, Student>  $students
+     */
+    public function bulkManualInput(
+        Collection $students,
+        AcademicYear $year,
+        string $date,
+        string $newStatus,
+        ?string $time,
+        ?string $reason = null,
+    ): int {
+        return DB::transaction(function () use ($students, $year, $date, $newStatus, $time, $reason) {
+            foreach ($students as $student) {
+                $this->recordManualInput($student, $year, $date, $newStatus, $time, $reason ?? 'Pembaruan presensi massal');
             }
 
-            // Rekam audit trail
-            AttendanceAudit::create([
-                'attendance_id' => $attendance->id,
-                'old_status' => $oldStatus,
-                'new_status' => $newStatus,
-                'changed_by' => auth()->id(),
-                'reason' => $reason ?? 'Koreksi manual',
-            ]);
-
-            return $attendance;
+            return $students->count();
         });
+    }
+
+    private function recordManualInput(
+        Student $student,
+        AcademicYear $year,
+        string $date,
+        string $newStatus,
+        ?string $time,
+        string $reason,
+    ): Attendance {
+        $attendance = Attendance::where('student_id', $student->id)
+            ->where('attendance_date', $date)
+            ->first();
+
+        $oldStatus = $attendance?->status;
+        $schoolTimezone = config('app.school_timezone');
+        $attendanceTime = in_array($newStatus, ['HADIR', 'TERLAMBAT'], true)
+            ? ($time ? $time.':00' : $attendance?->time)
+            : null;
+
+        if ($attendance) {
+            $attendance->update([
+                'status' => $newStatus,
+                'time' => $attendanceTime,
+                'source' => 'MANUAL',
+            ]);
+        } else {
+            $attendance = Attendance::create([
+                'student_id' => $student->id,
+                'academic_year_id' => $year->id,
+                'attendance_date' => $date,
+                'status' => $newStatus,
+                'time' => $attendanceTime,
+                'device_id' => null,
+                'source' => 'MANUAL',
+                'idempotency_key' => $student->id.'-m-'.Carbon::parse($date, $schoolTimezone)->timestamp,
+            ]);
+        }
+
+        AttendanceAudit::create([
+            'attendance_id' => $attendance->id,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'changed_by' => auth()->id(),
+            'reason' => $reason,
+        ]);
+
+        return $attendance;
     }
 }

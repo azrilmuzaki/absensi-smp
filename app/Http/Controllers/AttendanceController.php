@@ -8,8 +8,10 @@ use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\StudentClassPlacement;
 use App\Services\AttendanceService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 class AttendanceController extends Controller
 {
@@ -95,5 +97,54 @@ class AttendanceController extends Controller
         );
 
         return back()->with('success', "Absensi {$student->name} berhasil diperbarui (Status: {$data['status']}).");
+    }
+
+    public function bulkManual(Request $request): RedirectResponse
+    {
+        $user = auth()->user();
+        $activeYear = AcademicYear::where('is_active', true)->firstOrFail();
+
+        $rules = [
+            'date' => ['required', 'date_format:Y-m-d'],
+            'student_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'student_ids.*' => ['required', 'integer', 'distinct', Rule::exists('students', 'id')],
+            'bulk_status' => ['required', Rule::in(['HADIR', 'TERLAMBAT', 'IZIN', 'SAKIT', 'ALPHA'])],
+            'bulk_time' => ['nullable', 'required_if:bulk_status,HADIR,TERLAMBAT', 'date_format:H:i'],
+            'bulk_reason' => ['nullable', 'string', 'max:100'],
+        ];
+
+        if ($user->role === 'ADMIN') {
+            $rules['class_id'] = [
+                'required',
+                'integer',
+                Rule::exists('school_classes', 'id')->where('academic_year_id', $activeYear->id),
+            ];
+        }
+
+        $data = $request->validate($rules);
+        $classId = $user->role === 'ADMIN' ? (int) $data['class_id'] : $user->class_id;
+
+        abort_unless($classId, 403, 'Kelas tidak ditemukan.');
+
+        $authorizedStudentIds = StudentClassPlacement::query()
+            ->where('school_class_id', $classId)
+            ->where('academic_year_id', $activeYear->id)
+            ->whereIn('student_id', $data['student_ids'])
+            ->pluck('student_id')
+            ->all();
+
+        abort_unless(count($authorizedStudentIds) === count($data['student_ids']), 403, 'Pilihan siswa harus berasal dari kelas yang sedang dibuka.');
+
+        $students = Student::whereIn('id', $authorizedStudentIds)->get();
+        $updatedCount = $this->service->bulkManualInput(
+            $students,
+            $activeYear,
+            $data['date'],
+            $data['bulk_status'],
+            $data['bulk_time'] ?? null,
+            $data['bulk_reason'] ?? null,
+        );
+
+        return back()->with('success', "Status {$updatedCount} siswa berhasil diperbarui menjadi {$data['bulk_status']}.");
     }
 }

@@ -29,10 +29,40 @@
             <div class="card-title">Absensi Kelas: {{ $classes->firstWhere('id', $classId)?->name ?? '-' }}</div>
             <div style="font-size:12px;color:#6b7280">{{ $date->locale('id')->isoFormat('dddd, D MMMM Y') }}</div>
         </div>
-        <div class="table-wrap">
+        @if($dataset->isNotEmpty())
+            <form id="bulk-attendance-form" method="POST" action="{{ route('attendances.bulk-manual') }}"
+                data-class-name="{{ $classes->firstWhere('id', $classId)?->name ?? '-' }}">
+                @csrf
+                <input type="hidden" name="date" value="{{ $date->format('Y-m-d') }}">
+                <input type="hidden" name="class_id" value="{{ $classId }}">
+                <div id="bulk-attendance-toolbar" role="region" aria-label="Ubah status presensi massal"
+                    style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;background:#f9fafb;border-bottom:1px solid #e5e7eb">
+                    <span id="selected-attendance-count" style="font-size:12px;color:#4b5563;white-space:nowrap" aria-live="polite">0 dipilih</span>
+                    <select id="bulk-attendance-status" name="bulk_status" class="form-control" aria-label="Status baru" required
+                        style="width:auto;min-width:130px">
+                        <option value="">Pilih status</option>
+                        <option value="HADIR" @selected(old('bulk_status') === 'HADIR')>Hadir</option>
+                        <option value="TERLAMBAT" @selected(old('bulk_status') === 'TERLAMBAT')>Terlambat</option>
+                        <option value="IZIN" @selected(old('bulk_status') === 'IZIN')>Izin</option>
+                        <option value="SAKIT" @selected(old('bulk_status') === 'SAKIT')>Sakit</option>
+                        <option value="ALPHA" @selected(old('bulk_status') === 'ALPHA')>Alpha</option>
+                    </select>
+                    <input type="time" id="bulk-attendance-time" name="bulk_time" class="form-control"
+                        aria-label="Jam hadir, diterapkan kepada semua siswa terpilih" title="Jam yang sama diterapkan ke semua siswa dengan status Hadir atau Terlambat"
+                        value="{{ old('bulk_time') }}" step="60" style="width:130px">
+                    <input type="text" id="bulk-attendance-reason" name="bulk_reason" class="form-control"
+                        aria-label="Keterangan atau alasan (opsional)" value="{{ old('bulk_reason') }}"
+                        maxlength="100" placeholder="Alasan (opsional)" style="flex:1 1 180px;min-width:180px">
+                    <button type="submit" class="btn btn-primary btn-sm">Terapkan</button>
+                </div>
+        @endif
+        <div class="table-wrap overflow-x-auto shadow-sm rounded-lg">
             <table>
                 <thead>
                     <tr>
+                        @if($dataset->isNotEmpty())
+                            <th style="width:42px"><input type="checkbox" id="select-all-attendance" aria-label="Pilih semua siswa"></th>
+                        @endif
                         <th>Siswa</th>
                         <th>Status Asal</th>
                         <th>Waktu Hadir</th>
@@ -43,6 +73,9 @@
                 <tbody>
                     @forelse($dataset as $row)
                         <tr>
+                            <td><input type="checkbox" name="student_ids[]" value="{{ $row->student->id }}"
+                                class="attendance-student-checkbox" aria-label="Pilih {{ $row->student->name }}"
+                                @checked(is_array(old('student_ids')) && in_array($row->student->id, old('student_ids')) )></td>
                             <td><strong>{{ $row->student->name }}</strong></td>
                             <td>
                                 @php $sc = match ($row->status) { 'HADIR' => 'green', 'TERLAMBAT' => 'yellow', 'IZIN' => 'blue', 'SAKIT' => 'yellow', 'ALPHA' => 'red', default => 'gray'}; @endphp
@@ -68,6 +101,9 @@
                 </tbody>
             </table>
         </div>
+        @if($dataset->isNotEmpty())
+            </form>
+        @endif
     </div>
 
     {{-- Modal Koreksi Manual --}}
@@ -124,6 +160,56 @@
 
     @push('scripts')
         <script>
+            const bulkAttendanceForm = document.getElementById('bulk-attendance-form');
+            if (bulkAttendanceForm) {
+                const attendanceCheckboxes = [...bulkAttendanceForm.querySelectorAll('.attendance-student-checkbox')];
+                const selectAllAttendance = document.getElementById('select-all-attendance');
+                const bulkAttendanceToolbar = document.getElementById('bulk-attendance-toolbar');
+                const selectedAttendanceCount = document.getElementById('selected-attendance-count');
+                const bulkStatusInput = document.getElementById('bulk-attendance-status');
+                const bulkTimeInput = document.getElementById('bulk-attendance-time');
+
+                const updateAttendanceSelection = () => {
+                    const selectedCount = attendanceCheckboxes.filter(checkbox => checkbox.checked).length;
+                    selectedAttendanceCount.textContent = `${selectedCount} dipilih`;
+                    bulkAttendanceToolbar.style.display = selectedCount > 0 ? 'flex' : 'none';
+                    selectAllAttendance.checked = selectedCount > 0 && selectedCount === attendanceCheckboxes.length;
+                    selectAllAttendance.indeterminate = selectedCount > 0 && selectedCount < attendanceCheckboxes.length;
+                };
+
+                const updateBulkTimeRequirement = () => {
+                    bulkTimeInput.required = ['HADIR', 'TERLAMBAT'].includes(bulkStatusInput.value);
+                };
+
+                selectAllAttendance.addEventListener('change', () => {
+                    attendanceCheckboxes.forEach(checkbox => {
+                        checkbox.checked = selectAllAttendance.checked;
+                    });
+                    updateAttendanceSelection();
+                });
+
+                attendanceCheckboxes.forEach(checkbox => checkbox.addEventListener('change', updateAttendanceSelection));
+                bulkStatusInput.addEventListener('change', updateBulkTimeRequirement);
+                updateAttendanceSelection();
+                updateBulkTimeRequirement();
+
+                bulkAttendanceForm.addEventListener('submit', event => {
+                    const selectedCount = attendanceCheckboxes.filter(checkbox => checkbox.checked).length;
+                    if (selectedCount === 0) {
+                        event.preventDefault();
+                        window.alert('Pilih minimal satu siswa terlebih dahulu.');
+                        return;
+                    }
+
+                    const date = bulkAttendanceForm.elements.namedItem('date').value;
+                    const status = bulkStatusInput.options[bulkStatusInput.selectedIndex].text;
+                    const className = bulkAttendanceForm.dataset.className;
+                    if (!window.confirm(`Terapkan status ${status} kepada ${selectedCount} siswa kelas ${className} pada tanggal ${date}?`)) {
+                        event.preventDefault();
+                    }
+                });
+            }
+
             function openManualModal(id, name) {
                 const trigger = typeof id === 'object' ? id : null;
                 const studentId = trigger ? trigger.dataset.studentId : id;

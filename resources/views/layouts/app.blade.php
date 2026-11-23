@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    @vite(['resources/css/dashboard-tailwind.css'])
     <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}" />
     @stack('styles')
 </head>
@@ -24,8 +25,8 @@
                     <img src="{{ asset('images/logo-smp.jpg') }}" alt="" />
                 </span>
                 <span class="brand-copy">
-                    <span class="brand-name">Absensi SMP</span>
-                    <span class="brand-sub">Sistem Presensi RFID</span>
+                    <span class="brand-name">Sistem Absensi</span>
+                    <span class="brand-sub">SMP Wahid Hasyim Kepohbaru</span>
                 </span>
             </a>
 
@@ -110,7 +111,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
                 <div class="header-context">
-                    <span class="header-kicker">SISTEM ABSENSI SEKOLAH</span>
+                    <span class="header-kicker">SISTEM ABSENSI SMP WAHID HASYIM KEPOHBARU</span>
                     <span class="header-date">{{ now(config('app.school_timezone'))->locale('id')->isoFormat('dddd, D MMMM Y') }}</span>
                 </div>
                 <div class="header-role">

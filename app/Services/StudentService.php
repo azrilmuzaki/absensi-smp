@@ -75,6 +75,17 @@ class StudentService
     }
 
     /**
+     * Hapus siswa dan catat data sebelum penghapusan ke audit log.
+     */
+    public function delete(Student $student): void
+    {
+        DB::transaction(function () use ($student) {
+            AuditLog::record('student.deleted', Student::class, $student->id, $student->toArray());
+            $student->delete();
+        });
+    }
+
+    /**
      * Ambil daftar siswa aktif berdasar kelas dan tahun ajaran.
      */
     public function listByClass(SchoolClass $class, AcademicYear $year)
@@ -98,11 +109,14 @@ class StudentService
                 ->with(['schoolClass', 'academicYear']),
         ]);
 
-        if (! empty($filters['search'])) {
-            $q = $filters['search'];
-            $query->where(fn ($qb) => $qb->where('name', 'like', "%{$q}%")
-                ->orWhere('nis', 'like', "%{$q}%")
-                ->orWhere('nisn', 'like', "%{$q}%"));
+        $search = $filters['search'] ?? null;
+        if (is_string($search) && trim($search) !== '') {
+            $normalizedSearch = mb_strtolower(trim($search), 'UTF-8');
+            $searchPattern = "%{$normalizedSearch}%";
+
+            $query->where(fn ($qb) => $qb->whereRaw('LOWER(name) LIKE ?', [$searchPattern])
+                ->orWhereRaw('LOWER(nis) LIKE ?', [$searchPattern])
+                ->orWhereRaw('LOWER(nisn) LIKE ?', [$searchPattern]));
         }
 
         if (! empty($filters['class_id'])) {

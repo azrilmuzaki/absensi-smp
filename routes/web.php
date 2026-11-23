@@ -37,6 +37,7 @@ Route::middleware(['auth', 'active.user'])->group(function () {
     Route::middleware('role:ADMIN,WALI_KELAS')->group(function () {
         Route::get('/attendances', [AttendanceController::class, 'index'])->name('attendances.index');
         Route::post('/attendances/manual', [AttendanceController::class, 'storeManual'])->name('attendances.manual');
+        Route::post('/attendances/bulk-manual', [AttendanceController::class, 'bulkManual'])->name('attendances.bulk-manual');
         Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
         Route::get('/reports/export', [ReportController::class, 'export'])->name('reports.export');
     });
@@ -45,6 +46,7 @@ Route::middleware(['auth', 'active.user'])->group(function () {
     Route::middleware('role:ADMIN')->group(function () {
         Route::get('students/create', [StudentController::class, 'create'])->name('students.create');
         Route::post('students', [StudentController::class, 'store'])->name('students.store');
+        Route::delete('students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
     });
 
     Route::resource('students', StudentController::class)

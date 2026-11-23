@@ -6,6 +6,9 @@ use App\Models\AcademicYear;
 use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Services\StudentService;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -14,7 +17,7 @@ class StudentController extends Controller
 {
     public function __construct(private StudentService $service) {}
 
-    public function index(Request $request)
+    public function index(Request $request): View|JsonResponse
     {
         $user = Auth::user();
         $activeYear = AcademicYear::where('is_active', true)->first();
@@ -27,10 +30,17 @@ class StudentController extends Controller
         }
 
         $students = $this->service->listWithFilters($filters);
+
         $allYears = AcademicYear::orderByDesc('start_date')->get();
         $allClasses = $user->role === 'ADMIN'
             ? SchoolClass::where('academic_year_id', $activeYear?->id)->orderBy('name')->get()
             : collect();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'html' => view('students.index', compact('students', 'allYears', 'allClasses', 'activeYear'))->render(),
+            ]);
+        }
 
         return view('students.index', compact('students', 'allYears', 'allClasses', 'activeYear'));
     }
@@ -129,6 +139,17 @@ class StudentController extends Controller
 
         return redirect()->route('students.index', $request->query())
             ->with('success', "Siswa {$student->name} berhasil dinonaktifkan.");
+    }
+
+    public function destroy(Request $request, Student $student): RedirectResponse
+    {
+        abort_unless(Auth::user()->role === 'ADMIN', 403);
+
+        $studentName = $student->name;
+        $this->service->delete($student);
+
+        return redirect()->route('students.index', $request->query())
+            ->with('success', "Data siswa {$studentName} dan data terkait berhasil dihapus permanen.");
     }
 
     /**

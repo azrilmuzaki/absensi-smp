@@ -7,78 +7,60 @@
     @endphp
 
     <div class="card" style="margin-bottom:16px">
-        <div class="card-body" style="padding:14px 20px">
-            <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-                @if(auth()->user()->role === 'ADMIN')
-                    <div class="form-group" style="margin:0">
-                        <label>Kelas</label>
-                        <select name="class_id" class="form-control" onchange="this.form.submit()">
-                            @foreach($classes as $c)
-                                <option value="{{ $c->id }}" {{ $c->id == $classId ? 'selected' : '' }}>{{ $c->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                @endif
-                <div class="form-group" style="margin:0">
-                    <label>Bulan</label>
-                    <select name="month" class="form-control" onchange="this.form.submit()">
-                        @for($m = 1; $m <= 12; $m++)
-                            <option value="{{ $m }}" {{ $m == $month ? 'selected' : '' }}>{{ $monthNames[$m] }}</option>
-                        @endfor
-                    </select>
-                </div>
-                <div class="form-group" style="margin:0">
-                    <label>Tahun</label>
-                    <input type="number" name="year" class="form-control" value="{{ $year }}" style="width:90px"
-                        onchange="this.form.submit()" />
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="card" style="margin-bottom:16px">
         <div class="card-header">
-            <div class="card-title">Unduh Data Absensi</div>
+            <div class="card-title">Filter dan Unduh Rekap</div>
         </div>
         <div class="card-body" style="padding:14px 20px">
-            <form method="GET" action="{{ route('reports.export') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-                @if(auth()->user()->role === 'ADMIN')
+            <div class="report-toolbar">
+                <form method="GET" action="{{ route('reports.index') }}" class="report-filter-fields grid grid-cols-2 md:grid-cols-3 gap-3 items-end" style="margin:0">
+                    @if(auth()->user()->role === 'ADMIN')
+                        <div class="form-group" style="margin:0">
+                            <label for="report-class">Kelas</label>
+                            <select id="report-class" name="class_id" class="form-control" style="width:140px" onchange="this.form.submit()">
+                                @foreach($classes as $c)
+                                    <option value="{{ $c->id }}" {{ $c->id == $classId ? 'selected' : '' }}>{{ $c->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     <div class="form-group" style="margin:0">
-                        <label>Kelas</label>
-                        <select name="class_id" class="form-control" required>
-                            @foreach($classes as $c)
-                                <option value="{{ $c->id }}" {{ $c->id == $classId ? 'selected' : '' }}>{{ $c->name }}</option>
-                            @endforeach
+                        <label for="report-month">Bulan</label>
+                        <select id="report-month" name="month" class="form-control" style="width:135px" onchange="this.form.submit()">
+                            @for($m = 1; $m <= 12; $m++)
+                                <option value="{{ $m }}" {{ $m == $month ? 'selected' : '' }}>{{ $monthNames[$m] }}</option>
+                            @endfor
                         </select>
                     </div>
-                @endif
-                <div class="form-group" style="margin:0">
-                    <label>Periode</label>
-                    <select name="period" id="export-period" class="form-control">
-                        <option value="day">Harian</option>
-                        <option value="month" selected>Bulanan</option>
-                        <option value="year">Tahunan</option>
-                    </select>
-                </div>
-                <div class="form-group" id="export-date-group" style="margin:0;display:none">
-                    <label>Tanggal</label>
-                    <input type="date" name="date" class="form-control" value="{{ request('date', now(config('app.school_timezone'))->toDateString()) }}" />
-                </div>
-                <div class="form-group" id="export-month-group" style="margin:0">
-                    <label>Bulan</label>
-                    <select name="month" class="form-control">
-                        @for($m = 1; $m <= 12; $m++)
-                            <option value="{{ $m }}" {{ $m == $month ? 'selected' : '' }}>{{ $monthNames[$m] }}</option>
-                        @endfor
-                    </select>
-                </div>
-                <div class="form-group" id="export-year-group" style="margin:0">
-                    <label>Tahun</label>
-                    <input type="number" name="year" class="form-control" value="{{ $year }}" min="1900" max="2200" style="width:110px" />
-                </div>
-                <button type="submit" class="btn btn-primary">Unduh Rekap</button>
-            </form>
-            <div class="form-hint" style="margin-top:10px">Rekap bulanan diunduh sebagai Excel dengan tabel bergaris. Rekap harian dan tahunan diunduh sebagai CSV. Periode awal mengikuti filter rekap di atas.</div>
+                    <div class="form-group" style="margin:0">
+                        <label for="report-year">Tahun</label>
+                        <input id="report-year" type="number" name="year" class="form-control" value="{{ $year }}"
+                            min="1900" max="2200" style="width:90px" onchange="this.form.submit()" />
+                    </div>
+                </form>
+
+                <form method="GET" action="{{ route('reports.export') }}" class="report-export-fields" style="margin:0">
+                    @if(auth()->user()->role === 'ADMIN')
+                        <input type="hidden" name="class_id" value="{{ $classId }}">
+                    @endif
+                    <input type="hidden" name="month" value="{{ $month }}">
+                    <input type="hidden" name="year" value="{{ $year }}">
+                    <div class="form-group" style="margin:0">
+                        <label for="export-period">Periode</label>
+                        <select name="period" id="export-period" class="form-control" aria-label="Periode unduhan" style="width:130px">
+                            <option value="day">Harian</option>
+                            <option value="month" selected>Bulanan</option>
+                            <option value="year">Tahunan</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="export-date-group" style="margin:0;display:none">
+                        <label for="export-date">Tanggal</label>
+                        <input type="date" id="export-date" name="date" class="form-control"
+                            value="{{ request('date', now(config('app.school_timezone'))->toDateString()) }}" style="width:155px" />
+                    </div>
+                    <button type="submit" class="btn btn-primary">Unduh Rekap</button>
+                </form>
+            </div>
+            <div class="form-hint" style="margin-top:8px">Bulanan memakai bulan dan tahun filter; tahunan memakai tahun filter. Bulanan diunduh sebagai Excel, harian dan tahunan sebagai CSV.</div>
         </div>
     </div>
 
@@ -139,19 +121,12 @@
             (() => {
                 const period = document.getElementById('export-period');
                 const dateGroup = document.getElementById('export-date-group');
-                const monthGroup = document.getElementById('export-month-group');
-                const yearGroup = document.getElementById('export-year-group');
+                const dateInput = document.getElementById('export-date');
 
                 function updateExportFields() {
                     const showDate = period.value === 'day';
-                    const showMonth = period.value === 'month';
-                    const showYear = period.value !== 'day';
                     dateGroup.style.display = showDate ? 'block' : 'none';
-                    monthGroup.style.display = showMonth ? 'block' : 'none';
-                    yearGroup.style.display = showYear ? 'block' : 'none';
-                    dateGroup.querySelector('input').disabled = !showDate;
-                    monthGroup.querySelector('select').disabled = !showMonth;
-                    yearGroup.querySelector('input').disabled = !showYear;
+                    dateInput.disabled = !showDate;
                 }
 
                 period.addEventListener('change', updateExportFields);
